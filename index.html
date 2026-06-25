@@ -356,7 +356,7 @@ function ReceiptCapture() {
       showToast(`Extracted ${parsed.items?.length || 0} items`);
     } catch (err) {
       console.error(err);
-      showToast("Extraction failed — enter manually", "error");
+      showToast((err.message && err.message !== "Extraction failed" ? err.message : "Extraction failed") + " — enter manually", "error");
     } finally {
       setExtracting(false);
     }
