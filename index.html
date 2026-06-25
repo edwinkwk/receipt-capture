@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#B8845C">
+  <title>Receipt Capture</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧾</text></svg>">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; }
+    body { background: #FAF6F1; -webkit-font-smoothing: antialiased; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.9/babel.min.js"></script>
+  <script type="text/babel">
+const { useState, useRef, useCallback, useEffect } = React;
+
+const WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbxqOo7yEVbsPAJeJesz5_cdNj61bZGragWXT5Hak7gFM_EN5rfnzJrXtD3yKJTupccl/exec";
+const TARGET_SHEET_ID = "1Md91UVc4aaH7to6iMkQx8TaeAfryeA1dwEVXx6LXOsE";
+
+const CURRENCIES = ["AUD", "SGD", "USD", "EUR", "MYR", "JPY", "GBP", "THB"];
+
+// ─── Design Tokens ───
+const T = {
+  bg: "#FAF6F1",
+  surface: "#FFFFFF",
+  surfaceAlt: "#F5EDE4",
+  border: "#E4D5C7",
+  borderFocus: "#B8845C",
+  accent: "#B8845C",
+  accentHover: "#A57348",
+  accentSoft: "#EDE0D2",
+  text: "#3D2E1F",
+  textMid: "#7A6652",
+  textLight: "#A89680",
+  danger: "#C4533A",
+  dangerBg: "#FDF0ED",
+  success: "#4A8C5C",
+  successBg: "#EFF7F1",
+  radius: "10px",
+  radiusSm: "6px",
+  shadow: "0 1px 3px rgba(61,46,31,0.06), 0 1px 2px rgba(61,46,31,0.04)",
+  shadowLg: "0 4px 12px rgba(61,46,31,0.08)",
+  font: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+  mono: "'SF Mono', 'Fira Code', 'Consolas', monospace",
+};
+
+const fileToBase64 = (file) =>
+  new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => res(r.result.split(",")[1]);
+    r.onerror = () => rej(new Error("Read failed"));
+    r.readAsDataURL(file);
+  });
+
+const today = () => new Date().toISOString().slice(0, 10);
+
+const emptyItem = () => ({ description: "", qty: "1", unitPrice: "", category: "", promo: false });
+
+const emptyReceipt = () => ({
+  store: "",
+  date: today(),
+  currency: "AUD",
+  location: "",
+  payment: "",
+  items: [emptyItem()],
+  notes: "",
+});
+
+// ─── Styles ───
+const S = {
+  app: {
+    fontFamily: T.font,
+    background: T.bg,
+    color: T.text,
+    minHeight: "100vh",
+    maxWidth: 480,
+    margin: "0 auto",
+    padding: "0 0 100px",
+  },
+  header: {
+    background: T.accent,
+    padding: "20px 20px 18px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  headerTitle: {
+    color: "#FFF",
+    fontSize: 18,
+    fontWeight: 700,
+    letterSpacing: "-0.3px",
+    margin: 0,
+  },
+  headerSub: {
+    color: "rgba(255,255,255,0.7)",
+    fontSize: 11,
+    fontWeight: 500,
+    margin: 0,
+    cursor: "pointer",
+    textDecoration: "underline",
+    textDecorationColor: "rgba(255,255,255,0.35)",
+  },
+  headerBadge: {
+    background: "rgba(255,255,255,0.2)",
+    color: "#FFF",
+    fontSize: 11,
+    fontWeight: 600,
+    borderRadius: 20,
+    padding: "4px 10px",
+  },
+  section: {
+    background: T.surface,
+    margin: "12px 12px 0",
+    borderRadius: T.radius,
+    boxShadow: T.shadow,
+    overflow: "hidden",
+  },
+  sectionHead: {
+    padding: "14px 16px 0",
+    fontSize: 11,
+    fontWeight: 700,
+    textTransform: "uppercase",
+    letterSpacing: "0.8px",
+    color: T.textMid,
+  },
+  sectionBody: { padding: "12px 16px 16px" },
+  label: {
+    display: "block",
+    fontSize: 12,
+    fontWeight: 600,
+    color: T.textMid,
+    marginBottom: 4,
+  },
+  input: {
+    width: "100%",
+    boxSizing: "border-box",
+    border: `1.5px solid ${T.border}`,
+    borderRadius: T.radiusSm,
+    padding: "9px 10px",
+    fontSize: 14,
+    fontFamily: T.font,
+    color: T.text,
+    background: T.bg,
+    outline: "none",
+    transition: "border 0.15s",
+  },
+  select: {
+    border: `1.5px solid ${T.border}`,
+    borderRadius: T.radiusSm,
+    padding: "9px 10px",
+    fontSize: 14,
+    fontFamily: T.font,
+    color: T.text,
+    background: T.bg,
+    outline: "none",
+    appearance: "none",
+    width: "100%",
+    boxSizing: "border-box",
+  },
+  row: { display: "flex", gap: 10, marginBottom: 10 },
+  captureZone: {
+    border: `2px dashed ${T.border}`,
+    borderRadius: T.radius,
+    padding: "28px 16px",
+    textAlign: "center",
+    cursor: "pointer",
+    transition: "all 0.2s",
+    background: T.surfaceAlt,
+  },
+  captureIcon: { fontSize: 32, marginBottom: 6 },
+  captureLabel: { fontSize: 13, fontWeight: 600, color: T.textMid },
+  captureSub: { fontSize: 11, color: T.textLight, marginTop: 2 },
+  btn: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    border: "none",
+    borderRadius: T.radiusSm,
+    padding: "10px 16px",
+    fontSize: 14,
+    fontWeight: 600,
+    fontFamily: T.font,
+    cursor: "pointer",
+    transition: "all 0.15s",
+  },
+  btnPrimary: {
+    background: T.accent,
+    color: "#FFF",
+    width: "100%",
+  },
+  btnOutline: {
+    background: "transparent",
+    color: T.accent,
+    border: `1.5px solid ${T.accent}`,
+  },
+  btnDanger: {
+    background: "transparent",
+    color: T.danger,
+    border: `1.5px solid ${T.danger}`,
+    padding: "6px 10px",
+    fontSize: 12,
+  },
+  btnSmall: {
+    padding: "6px 10px",
+    fontSize: 12,
+  },
+  itemCard: {
+    background: T.surfaceAlt,
+    borderRadius: T.radiusSm,
+    padding: "12px",
+    marginBottom: 8,
+    position: "relative",
+  },
+  itemNum: {
+    position: "absolute",
+    top: 8,
+    right: 10,
+    fontSize: 10,
+    fontWeight: 700,
+    color: T.textLight,
+  },
+  toast: {
+    position: "fixed",
+    bottom: 80,
+    left: "50%",
+    transform: "translateX(-50%)",
+    padding: "10px 20px",
+    borderRadius: 24,
+    fontSize: 13,
+    fontWeight: 600,
+    zIndex: 999,
+    boxShadow: T.shadowLg,
+    animation: "slideUp 0.3s ease",
+  },
+  preview: {
+    width: "100%",
+    maxHeight: 200,
+    objectFit: "contain",
+    borderRadius: T.radiusSm,
+    marginBottom: 10,
+  },
+  spinner: {
+    display: "inline-block",
+    width: 16,
+    height: 16,
+    border: "2.5px solid rgba(255,255,255,0.3)",
+    borderTopColor: "#FFF",
+    borderRadius: "50%",
+    animation: "spin 0.6s linear infinite",
+  },
+  total: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: "12px 16px",
+    borderTop: `1px solid ${T.border}`,
+    fontWeight: 700,
+    fontSize: 15,
+  },
+};
+
+const keyframes = `
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes slideUp { from { opacity:0; transform:translate(-50%,20px); } to { opacity:1; transform:translate(-50%,0); } }
+`;
+
+function ReceiptCapture() {
+  const [receipt, setReceipt] = useState(emptyReceipt());
+  const [imagePreview, setImagePreview] = useState(null);
+  const [extracting, setExtracting] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [toast, setToast] = useState(null);
+  const [history, setHistory] = useState([]);
+  const fileRef = useRef(null);
+  const cameraRef = useRef(null);
+
+  const showToast = (msg, type = "success") => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  const updateReceipt = (field, val) => setReceipt((r) => ({ ...r, [field]: val }));
+
+  const updateItem = (i, field, val) =>
+    setReceipt((r) => {
+      const items = [...r.items];
+      items[i] = { ...items[i], [field]: val };
+      return { ...r, items };
+    });
+
+  const addItem = () => setReceipt((r) => ({ ...r, items: [...r.items, emptyItem()] }));
+
+  const removeItem = (i) =>
+    setReceipt((r) => {
+      if (r.items.length <= 1) return r;
+      return { ...r, items: r.items.filter((_, idx) => idx !== i) };
+    });
+
+  const calcTotal = () =>
+    receipt.items
+      .reduce((s, it) => s + (parseFloat(it.qty) || 0) * (parseFloat(it.unitPrice) || 0), 0)
+      .toFixed(2);
+
+  // ─── AI Extraction ───
+  const handleImage = useCallback(async (file) => {
+    if (!file) return;
+
+    const url = URL.createObjectURL(file);
+    setImagePreview(url);
+    setExtracting(true);
+
+    try {
+      const base64 = await fileToBase64(file);
+      const mediaType = file.type || "image/jpeg";
+
+      // Route through Apps Script proxy (server-side, no CORS issues)
+      const res = await fetch(WEBHOOK_URL, {
+        method: "POST",
+        redirect: "follow",
+        headers: { "Content-Type": "text/plain" },
+        body: JSON.stringify({
+          action: "extractReceipt",
+          image: base64,
+          mediaType: mediaType,
+        }),
+      });
+
+      const parsed = await res.json();
+      if (!parsed.ok) throw new Error(parsed.error || "Extraction failed");
+
+      setReceipt({
+        store: parsed.store || "",
+        date: parsed.date || today(),
+        currency: parsed.currency || "AUD",
+        location: parsed.location || "",
+        payment: parsed.payment || "",
+        items: (parsed.items || []).map((it) => ({
+          description: it.description || "",
+          qty: String(it.qty || "1"),
+          unitPrice: String(it.unitPrice || ""),
+          category: it.category || "",
+          promo: !!it.promo,
+        })),
+        notes: parsed.notes || "",
+      });
+
+      showToast(`Extracted ${parsed.items?.length || 0} items`);
+    } catch (err) {
+      console.error(err);
+      showToast("Extraction failed — enter manually", "error");
+    } finally {
+      setExtracting(false);
+    }
+  }, []);
+
+  // ─── Submit to Google Sheet ───
+  const handleSubmit = async () => {
+    if (!receipt.store || receipt.items.every((it) => !it.description)) {
+      showToast("Fill in store and at least one item", "error");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const filteredItems = receipt.items
+        .filter((it) => it.description)
+        .map((it) => ({
+          description: it.description,
+          qty: parseFloat(it.qty) || 1,
+          unitPrice: parseFloat(it.unitPrice) || 0,
+          category: it.category,
+          promo: it.promo || false,
+          notes: "",
+        }));
+
+      // Format date as DD/MM/YYYY for the sheet and DD-MM-YYYY for the tab name
+      const [y, m, d] = receipt.date.split("-");
+      const dateFmt = `${d}/${m}/${y}`;
+      const dateTab = `${d}-${m}-${y}`;
+      const sheetName = `${receipt.store} ${dateTab}`;
+      const title = `${receipt.store}${receipt.location ? " " + receipt.location.split(",")[0] : ""} — Purchase Tracker`;
+      const subtitleParts = [`Store: ${receipt.store}`];
+      if (receipt.location) subtitleParts[0] += ` ${receipt.location}`;
+      subtitleParts.push(`Date: ${dateFmt}`);
+      if (receipt.notes) subtitleParts.push(receipt.notes);
+      const subtitle = subtitleParts.join(" | ");
+      const footer = receipt.payment ? `* Payment: ${receipt.payment}${receipt.notes ? " | " + receipt.notes : ""}` : receipt.notes || "";
+
+      const payload = {
+        action: "addReceiptSheet",
+        sheet: sheetName,
+        title,
+        subtitle,
+        items: filteredItems,
+        total: parseFloat(calcTotal()),
+        footer,
+        overviewEntry: {
+          date: dateFmt,
+          store: receipt.store,
+          location: receipt.location,
+          items: filteredItems.length,
+          total: parseFloat(calcTotal()),
+          payment: receipt.payment,
+        },
+      };
+
+      const res = await fetch(WEBHOOK_URL, {
+        method: "POST",
+        mode: "no-cors",
+        headers: { "Content-Type": "text/plain" },
+        body: JSON.stringify(payload),
+      });
+
+      setHistory((h) => [
+        { store: receipt.store, total: calcTotal(), currency: receipt.currency, date: receipt.date, itemCount: filteredItems.length, time: new Date().toLocaleTimeString() },
+        ...h,
+      ]);
+      setReceipt(emptyReceipt());
+      setImagePreview(null);
+      showToast("Pushed to Google Sheet");
+    } catch (err) {
+      console.error(err);
+      showToast("Push failed — check connection", "error");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleReset = () => {
+    setReceipt(emptyReceipt());
+    setImagePreview(null);
+  };
+
+  return (
+    <div style={S.app}>
+      <style>{keyframes}</style>
+
+      {/* Header */}
+      <div style={S.header}>
+        <div>
+          <h1 style={S.headerTitle}>Receipt Capture</h1>
+          <p style={S.headerSub} onClick={() => window.open(`https://docs.google.com/spreadsheets/d/${TARGET_SHEET_ID}`, '_blank')}>Open purchase_tracker ↗</p>
+        </div>
+        {history.length > 0 && <span style={S.headerBadge}>{history.length} sent</span>}
+      </div>
+
+      {/* Capture Zone */}
+      <div style={S.section}>
+        <div style={S.sectionHead}>Capture</div>
+        <div style={S.sectionBody}>
+          {imagePreview && <img src={imagePreview} style={S.preview} alt="Receipt" />}
+
+          {extracting ? (
+            <div style={{ textAlign: "center", padding: 20 }}>
+              <div style={{ ...S.spinner, borderColor: T.accentSoft, borderTopColor: T.accent, width: 28, height: 28 }} />
+              <p style={{ fontSize: 13, color: T.textMid, marginTop: 10 }}>Extracting receipt data…</p>
+            </div>
+          ) : (
+            <div style={{ display: "flex", gap: 8 }}>
+              {/* Camera (mobile) */}
+              <input
+                ref={cameraRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                style={{ display: "none" }}
+                onChange={(e) => handleImage(e.target.files?.[0])}
+              />
+              <div
+                style={{ ...S.captureZone, flex: 1 }}
+                onClick={() => cameraRef.current?.click()}
+              >
+                <div style={S.captureIcon}>📷</div>
+                <div style={S.captureLabel}>Take Photo</div>
+                <div style={S.captureSub}>Camera capture</div>
+              </div>
+
+              {/* File upload */}
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/*,.pdf"
+                style={{ display: "none" }}
+                onChange={(e) => handleImage(e.target.files?.[0])}
+              />
+              <div
+                style={{ ...S.captureZone, flex: 1 }}
+                onClick={() => fileRef.current?.click()}
+              >
+                <div style={S.captureIcon}>📁</div>
+                <div style={S.captureLabel}>Upload File</div>
+                <div style={S.captureSub}>Gallery or files</div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Receipt Details */}
+      <div style={S.section}>
+        <div style={S.sectionHead}>Receipt Details</div>
+        <div style={S.sectionBody}>
+          <div style={S.row}>
+            <div style={{ flex: 2 }}>
+              <label style={S.label}>Store</label>
+              <input
+                style={S.input}
+                placeholder="e.g. Woolworths"
+                value={receipt.store}
+                onChange={(e) => updateReceipt("store", e.target.value)}
+              />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label style={S.label}>Date</label>
+              <input
+                type="date"
+                style={S.input}
+                value={receipt.date}
+                onChange={(e) => updateReceipt("date", e.target.value)}
+              />
+            </div>
+          </div>
+          <div style={S.row}>
+            <div style={{ flex: 1 }}>
+              <label style={S.label}>Location</label>
+              <input
+                style={S.input}
+                placeholder="e.g. Margaret River, WA"
+                value={receipt.location}
+                onChange={(e) => updateReceipt("location", e.target.value)}
+              />
+            </div>
+          </div>
+          <div style={S.row}>
+            <div style={{ flex: 1 }}>
+              <label style={S.label}>Currency</label>
+              <select
+                style={S.select}
+                value={receipt.currency}
+                onChange={(e) => updateReceipt("currency", e.target.value)}
+              >
+                {CURRENCIES.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </div>
+            <div style={{ flex: 1 }}>
+              <label style={S.label}>Payment</label>
+              <input
+                style={S.input}
+                placeholder="e.g. Visa Debit ****7601"
+                value={receipt.payment}
+                onChange={(e) => updateReceipt("payment", e.target.value)}
+              />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label style={S.label}>Notes</label>
+              <input
+                style={S.input}
+                placeholder="Ref #, GST"
+                value={receipt.notes}
+                onChange={(e) => updateReceipt("notes", e.target.value)}
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Line Items */}
+      <div style={S.section}>
+        <div style={{ ...S.sectionHead, display: "flex", justifyContent: "space-between", alignItems: "center", paddingRight: 16 }}>
+          <span>Items ({receipt.items.length})</span>
+          <button
+            style={{ ...S.btn, ...S.btnSmall, ...S.btnOutline, textTransform: "none", letterSpacing: 0 }}
+            onClick={addItem}
+          >
+            + Add
+          </button>
+        </div>
+        <div style={S.sectionBody}>
+          {receipt.items.map((item, i) => (
+            <div key={i} style={S.itemCard}>
+              <span style={S.itemNum}>#{i + 1}</span>
+              <div style={{ marginBottom: 8 }}>
+                <input
+                  style={{ ...S.input, background: "#FFF" }}
+                  placeholder="Description"
+                  value={item.description}
+                  onChange={(e) => updateItem(i, "description", e.target.value)}
+                />
+              </div>
+              <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
+                <div style={{ flex: 1 }}>
+                  <label style={{ ...S.label, fontSize: 10 }}>Qty</label>
+                  <input
+                    style={{ ...S.input, background: "#FFF", textAlign: "center" }}
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={item.qty}
+                    onChange={(e) => updateItem(i, "qty", e.target.value)}
+                  />
+                </div>
+                <div style={{ flex: 1.5 }}>
+                  <label style={{ ...S.label, fontSize: 10 }}>Unit Price</label>
+                  <input
+                    style={{ ...S.input, background: "#FFF", fontFamily: T.mono }}
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    placeholder="0.00"
+                    value={item.unitPrice}
+                    onChange={(e) => updateItem(i, "unitPrice", e.target.value)}
+                  />
+                </div>
+                <div style={{ flex: 1.5 }}>
+                  <label style={{ ...S.label, fontSize: 10 }}>Category</label>
+                  <input
+                    style={{ ...S.input, background: "#FFF" }}
+                    placeholder="e.g. Grocery"
+                    value={item.category}
+                    onChange={(e) => updateItem(i, "category", e.target.value)}
+                  />
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-end", paddingBottom: 2 }}>
+                  <label style={{ ...S.label, fontSize: 9, textAlign: "center" }}>Promo</label>
+                  <input
+                    type="checkbox"
+                    checked={item.promo}
+                    onChange={(e) => updateItem(i, "promo", e.target.checked)}
+                    style={{ width: 18, height: 18, accentColor: T.accent }}
+                  />
+                </div>
+                {receipt.items.length > 1 && (
+                  <button
+                    style={{ ...S.btn, padding: "8px", fontSize: 14, background: "transparent", color: T.danger }}
+                    onClick={() => removeItem(i)}
+                    title="Remove"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+              {item.qty && item.unitPrice && (
+                <div style={{ textAlign: "right", fontSize: 12, color: T.textMid, marginTop: 6, fontFamily: T.mono }}>
+                  Line: {((parseFloat(item.qty) || 0) * (parseFloat(item.unitPrice) || 0)).toFixed(2)}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* Total */}
+        <div style={S.total}>
+          <span>Total</span>
+          <span style={{ fontFamily: T.mono, fontSize: 17 }}>
+            {receipt.currency} {calcTotal()}
+          </span>
+        </div>
+      </div>
+
+      {/* Actions */}
+      <div style={{ padding: "16px 12px", display: "flex", gap: 10 }}>
+        <button
+          style={{ ...S.btn, ...S.btnOutline, flex: 1 }}
+          onClick={handleReset}
+        >
+          Clear
+        </button>
+        <button
+          style={{
+            ...S.btn,
+            ...S.btnPrimary,
+            flex: 2,
+            opacity: submitting ? 0.7 : 1,
+          }}
+          onClick={handleSubmit}
+          disabled={submitting}
+        >
+          {submitting ? (
+            <>
+              <span style={S.spinner} /> Pushing…
+            </>
+          ) : (
+            "Push to Google Sheet"
+          )}
+        </button>
+      </div>
+
+      {/* Recent History */}
+      {history.length > 0 && (
+        <div style={S.section}>
+          <div style={S.sectionHead}>Sent This Session</div>
+          <div style={{ padding: "8px 16px 12px" }}>
+            {history.map((h, i) => (
+              <div
+                key={i}
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  padding: "8px 0",
+                  borderBottom: i < history.length - 1 ? `1px solid ${T.border}` : "none",
+                  fontSize: 13,
+                }}
+              >
+                <div>
+                  <div style={{ fontWeight: 600 }}>{h.store}</div>
+                  <div style={{ fontSize: 11, color: T.textLight }}>
+                    {h.date} · {h.itemCount} items · {h.time}
+                  </div>
+                </div>
+                <div style={{ fontWeight: 700, fontFamily: T.mono, fontSize: 14 }}>
+                  {h.currency} {h.total}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Toast */}
+      {toast && (
+        <div
+          style={{
+            ...S.toast,
+            background: toast.type === "error" ? T.danger : T.success,
+            color: "#FFF",
+          }}
+        >
+          {toast.type === "error" ? "⚠ " : "✓ "}
+          {toast.msg}
+        </div>
+      )}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(ReceiptCapture));
+  </script>
+</body>
+</html>
