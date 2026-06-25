@@ -24,10 +24,8 @@ const { useState, useRef, useCallback, useEffect } = React;
 
 const WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbylxW4k9MRzQ9FsNATi1l4ZsJc-ZrNidpaPzoVNE15ksE6kHIa_SEJHDOECwRVAsrem/exec";
 const TARGET_SHEET_ID = "1Md91UVc4aaH7to6iMkQx8TaeAfryeA1dwEVXx6LXOsE";
-const geminiUrl = () => {
-  const k = localStorage.getItem("gemini_key");
-  return k ? `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${k}` : null;
-};
+const GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
+const geminiKey = () => localStorage.getItem("gemini_key") || "";
 
 const CURRENCIES = ["AUD", "SGD", "USD", "EUR", "MYR", "JPY", "GBP", "THB"];
 
@@ -328,11 +326,11 @@ function ReceiptCapture() {
       const base64 = await fileToBase64(file);
       const mediaType = file.type || "image/jpeg";
 
-      const url = geminiUrl();
-      if (!url) { showToast("Set Gemini API key in Settings ⚙️", "error"); setExtracting(false); return; }
-      const res = await fetch(url, {
+      const key = geminiKey();
+      if (!key) { showToast("Set Gemini API key in Settings", "error"); setExtracting(false); return; }
+      const res = await fetch(GEMINI_ENDPOINT, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "x-goog-api-key": key },
         body: JSON.stringify({
           contents: [{
             parts: [
