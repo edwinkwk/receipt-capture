@@ -465,7 +465,7 @@ Rules: currency default SGD, detect if AUD/USD/EUR/MYR/JPY/GBP/THB visible; qty 
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           {history.length > 0 && <span style={S.headerBadge}>{history.length} sent</span>}
-          <span style={{ cursor: "pointer", fontSize: 18, opacity: 0.85 }} onClick={() => setShowSettings(s => !s)} title="Settings">⚙️</span>
+          <span style={{ cursor: "pointer", fontSize: 14, fontWeight: 600, color: "#fff", background: "rgba(255,255,255,0.2)", borderRadius: 6, padding: "4px 10px" }} onClick={() => setShowSettings(s => !s)}>Settings</span>
         </div>
       </div>
 
