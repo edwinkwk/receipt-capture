@@ -24,8 +24,6 @@ const { useState, useRef, useCallback, useEffect } = React;
 
 const WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbylxW4k9MRzQ9FsNATi1l4ZsJc-ZrNidpaPzoVNE15ksE6kHIa_SEJHDOECwRVAsrem/exec";
 const TARGET_SHEET_ID = "1Md91UVc4aaH7to6iMkQx8TaeAfryeA1dwEVXx6LXOsE";
-const GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent";
-const geminiKey = () => localStorage.getItem("gemini_key") || "";
 
 const CURRENCIES = ["AUD", "SGD", "USD", "EUR", "MYR", "JPY", "GBP", "THB"];
 
@@ -282,8 +280,6 @@ function ReceiptCapture() {
   const [submitting, setSubmitting] = useState(false);
   const [toast, setToast] = useState(null);
   const [history, setHistory] = useState([]);
-  const [showSettings, setShowSettings] = useState(false);
-  const [geminiKeyInput, setGeminiKeyInput] = useState(() => localStorage.getItem("gemini_key") || "");
   const fileRef = useRef(null);
   const cameraRef = useRef(null);
 
@@ -326,27 +322,15 @@ function ReceiptCapture() {
       const base64 = await fileToBase64(file);
       const mediaType = file.type || "image/jpeg";
 
-      const key = geminiKey();
-      if (!key) { showToast("Set Gemini API key in Settings", "error"); setExtracting(false); return; }
-      const res = await fetch(GEMINI_ENDPOINT, {
+      const res = await fetch(WEBHOOK_URL, {
         method: "POST",
-        headers: { "Content-Type": "application/json", "x-goog-api-key": key },
-        body: JSON.stringify({
-          contents: [{
-            parts: [
-              { inline_data: { mime_type: mediaType, data: base64 } },
-              { text: `Extract receipt data and return ONLY valid JSON with these exact fields:
-{"store":"","date":"YYYY-MM-DD","currency":"SGD","location":"","payment":"","items":[{"description":"","qty":"1","unitPrice":"0.00","category":"","promo":false}],"notes":""}
-Rules: currency default SGD, detect if AUD/USD/EUR/MYR/JPY/GBP/THB visible; qty and unitPrice as strings; promo true if item is on special/discount; category guess from item name; omit totals/tax/change rows from items.` }
-            ]
-          }],
-          generationConfig: { responseMimeType: "application/json" }
-        }),
+        redirect: "follow",
+        headers: { "Content-Type": "text/plain" },
+        body: JSON.stringify({ action: "extractReceipt", image: base64, mediaType }),
       });
 
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error?.message || "Gemini error");
-      const parsed = JSON.parse(data.candidates[0].content.parts[0].text);
+      const parsed = await res.json();
+      if (!parsed.ok) throw new Error(parsed.error || "Extraction failed");
 
       setReceipt({
         store: parsed.store || "",
@@ -461,36 +445,8 @@ Rules: currency default SGD, detect if AUD/USD/EUR/MYR/JPY/GBP/THB visible; qty 
           <h1 style={S.headerTitle}>Receipt Capture <span style={{ fontSize: 11, fontWeight: 400, opacity: 0.6 }}>v1.1</span></h1>
           <p style={S.headerSub} onClick={() => window.open(`https://docs.google.com/spreadsheets/d/${TARGET_SHEET_ID}`, '_blank')}>Open purchase_tracker ↗</p>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          {history.length > 0 && <span style={S.headerBadge}>{history.length} sent</span>}
-          <span style={{ cursor: "pointer", fontSize: 14, fontWeight: 600, color: "#fff", background: "rgba(255,255,255,0.2)", borderRadius: 6, padding: "4px 10px" }} onClick={() => setShowSettings(s => !s)}>Settings</span>
-        </div>
+        {history.length > 0 && <span style={S.headerBadge}>{history.length} sent</span>}
       </div>
-
-      {showSettings && (
-        <div style={S.section}>
-          <div style={S.sectionHead}>Settings</div>
-          <div style={S.sectionBody}>
-            <label style={S.label}>Gemini API Key</label>
-            <div style={{ display: "flex", gap: 8 }}>
-              <input
-                style={{ ...S.input, flex: 1, fontFamily: T.mono, fontSize: 12 }}
-                type="password"
-                placeholder="Paste your Gemini API key"
-                value={geminiKeyInput}
-                onChange={e => setGeminiKeyInput(e.target.value)}
-              />
-              <button
-                style={{ ...S.btn, ...S.btnPrimary, flex: "none", padding: "9px 16px" }}
-                onClick={() => { localStorage.setItem("gemini_key", geminiKeyInput); showToast("Key saved"); setShowSettings(false); }}
-              >Save</button>
-            </div>
-            <p style={{ fontSize: 11, color: T.textLight, marginTop: 6 }}>
-              Stored in your browser only. Free key at <span style={{ textDecoration: "underline", cursor: "pointer" }} onClick={() => window.open("https://aistudio.google.com/app/apikey", "_blank")}>aistudio.google.com</span>.
-            </p>
-          </div>
-        </div>
-      )}
 
       {/* Capture Zone */}
       <div style={S.section}>
