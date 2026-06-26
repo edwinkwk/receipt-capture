@@ -410,7 +410,7 @@ function ReceiptCapture() {
       const [y, m, d] = receipt.date.split("-");
       const dateFmt = `${d}/${m}/${y}`;
       const dateTab = `${d}-${m}-${y}`;
-      const sheetName = `${receipt.store} ${dateTab}`;
+      const sheetName = receipt.store;
       const title = `${receipt.store}${receipt.location ? " " + receipt.location.split(",")[0] : ""} — Purchase Tracker`;
       const subtitleParts = [`Store: ${receipt.store}`];
       if (receipt.location) subtitleParts[0] += ` ${receipt.location}`;
@@ -431,7 +431,7 @@ function ReceiptCapture() {
           date: dateFmt,
           store: receipt.store,
           location: receipt.location,
-          items: filteredItems.length,
+          items: filteredItems.reduce((s, it) => s + (parseFloat(it.qty) || 1), 0),
           total: parseFloat(calcTotal()),
           currency: receipt.currency,
           payment: receipt.payment,
@@ -446,7 +446,7 @@ function ReceiptCapture() {
       });
 
       setHistory((h) => [
-        { store: receipt.store, total: calcTotal(), currency: receipt.currency, date: receipt.date, itemCount: filteredItems.length, time: new Date().toLocaleTimeString() },
+        { store: receipt.store, total: calcTotal(), currency: receipt.currency, date: receipt.date, itemCount: filteredItems.reduce((s, it) => s + (parseFloat(it.qty) || 1), 0), time: new Date().toLocaleTimeString() },
         ...h,
       ]);
       setReceipt(emptyReceipt());
@@ -472,7 +472,7 @@ function ReceiptCapture() {
       {/* Header */}
       <div style={S.header}>
         <div>
-          <h1 style={S.headerTitle}>Receipt Capture <span style={{ fontSize: 11, fontWeight: 400, opacity: 0.6 }}>v1.5</span></h1>
+          <h1 style={S.headerTitle}>Receipt Capture <span style={{ fontSize: 11, fontWeight: 400, opacity: 0.6 }}>v1.6</span></h1>
           <p style={S.headerSub} onClick={() => window.open(`https://docs.google.com/spreadsheets/d/${TARGET_SHEET_ID}`, '_blank')}>Open purchase_tracker ↗</p>
         </div>
         {history.length > 0 && <span style={S.headerBadge}>{history.length} sent</span>}
