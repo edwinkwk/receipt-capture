@@ -52,6 +52,20 @@ const T = {
   mono: "'SF Mono', 'Fira Code', 'Consolas', monospace",
 };
 
+const resizeImage = (file, maxDim = 1024) =>
+  new Promise((res) => {
+    const img = new Image();
+    img.onload = () => {
+      const scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+      const c = document.createElement("canvas");
+      c.width = Math.round(img.width * scale);
+      c.height = Math.round(img.height * scale);
+      c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+      c.toBlob((blob) => res(new File([blob], file.name, { type: "image/jpeg" })), "image/jpeg", 0.8);
+    };
+    img.src = URL.createObjectURL(file);
+  });
+
 const fileToBase64 = (file) =>
   new Promise((res, rej) => {
     const r = new FileReader();
@@ -319,8 +333,9 @@ function ReceiptCapture() {
     setExtracting(true);
 
     try {
-      const base64 = await fileToBase64(file);
-      const mediaType = file.type || "image/jpeg";
+      const resized = await resizeImage(file);
+      const base64 = await fileToBase64(resized);
+      const mediaType = "image/jpeg";
 
       // Fetch Gemini key from Apps Script (GET has CORS headers)
       const cfgRes = await fetch(WEBHOOK_URL + "?action=getConfig", { redirect: "follow" });
