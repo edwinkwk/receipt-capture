@@ -434,6 +434,7 @@ function ReceiptCapture() {
           location: receipt.location,
           items: filteredItems.length,
           total: parseFloat(calcTotal()),
+          currency: receipt.currency,
           payment: receipt.payment,
         },
       };
