@@ -333,9 +333,8 @@ function ReceiptCapture() {
     setExtracting(true);
 
     try {
-      const resized = await resizeImage(file);
-      const base64 = await fileToBase64(resized);
-      const mediaType = "image/jpeg";
+      const base64 = await fileToBase64(file);
+      const mediaType = file.type || "image/jpeg";
 
       // Fetch Gemini key from Apps Script (GET has CORS headers)
       const cfgRes = await fetch(WEBHOOK_URL + "?action=getConfig", { redirect: "follow" });
@@ -473,7 +472,7 @@ function ReceiptCapture() {
       {/* Header */}
       <div style={S.header}>
         <div>
-          <h1 style={S.headerTitle}>Receipt Capture <span style={{ fontSize: 11, fontWeight: 400, opacity: 0.6 }}>v1.4</span></h1>
+          <h1 style={S.headerTitle}>Receipt Capture <span style={{ fontSize: 11, fontWeight: 400, opacity: 0.6 }}>v1.5</span></h1>
           <p style={S.headerSub} onClick={() => window.open(`https://docs.google.com/spreadsheets/d/${TARGET_SHEET_ID}`, '_blank')}>Open purchase_tracker ↗</p>
         </div>
         {history.length > 0 && <span style={S.headerBadge}>{history.length} sent</span>}
