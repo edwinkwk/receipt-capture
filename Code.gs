@@ -269,6 +269,24 @@ function addReceiptSheet(ss, body) {
           .setVerticalAlignment("middle");
         if (i === 4) cell.setNumberFormat("$#,##0.00");
       });
+      // Recalculate TOTAL SPEND row (last row)
+      var newLastRow = ovSheet.getLastRow();
+      var ovData = ovSheet.getDataRange().getValues();
+      var totalItems = 0;
+      var totalSpend = 0;
+      // Find header row to skip it (row with "Date" in col A)
+      var ovHeaderIdx = 0;
+      for (var r = 0; r < ovData.length; r++) {
+        if (String(ovData[r][0]).toLowerCase() === "date") { ovHeaderIdx = r; break; }
+      }
+      // Sum all data rows (skip header and last TOTAL SPEND row)
+      for (var r = ovHeaderIdx + 1; r < ovData.length - 1; r++) {
+        totalItems += (parseFloat(ovData[r][3]) || 0);
+        totalSpend += (parseFloat(ovData[r][4]) || 0);
+      }
+      ovSheet.getRange(newLastRow, 4).setValue(totalItems);
+      ovSheet.getRange(newLastRow, 5).setValue(totalSpend).setNumberFormat("$#,##0.00");
+
       overviewUpdated = true;
     }
   }
