@@ -322,25 +322,29 @@ function ReceiptCapture() {
       const base64 = await fileToBase64(file);
       const mediaType = file.type || "image/jpeg";
 
-      // Send image to Apps Script (fire-and-forget, no CORS issue)
-      const requestId = "r_" + Date.now() + "_" + Math.random().toString(36).slice(2, 8);
-      fetch(WEBHOOK_URL, {
-        method: "POST",
-        mode: "no-cors",
-        headers: { "Content-Type": "text/plain" },
-        body: JSON.stringify({ action: "extractReceipt", image: base64, mediaType, requestId }),
-      });
+      // Fetch Gemini key from Apps Script (GET has CORS headers)
+      const cfgRes = await fetch(WEBHOOK_URL + "?action=getConfig", { redirect: "follow" });
+      const cfg = await cfgRes.json();
+      if (!cfg.k) throw new Error("Gemini API key not configured in Apps Script");
 
-      // Poll for result via GET (has CORS headers)
-      const pollUrl = WEBHOOK_URL + "?action=getResult&id=" + requestId;
-      let parsed = null;
-      for (let i = 0; i < 30; i++) {
-        await new Promise((r) => setTimeout(r, 2000));
-        const pollRes = await fetch(pollUrl, { redirect: "follow" });
-        const pollData = await pollRes.json();
-        if (!pollData.pending) { parsed = pollData; break; }
-      }
-      if (!parsed) throw new Error("Extraction timed out");
+      // Call Gemini directly from browser (has CORS headers)
+      const geminiRes = await fetch(
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-goog-api-key": cfg.k },
+          body: JSON.stringify({
+            contents: [{ parts: [
+              { inline_data: { mime_type: mediaType, data: base64 } },
+              { text: 'Extract receipt data. Return ONLY valid JSON: {"store":"","date":"YYYY-MM-DD","currency":"SGD","location":"","payment":"","items":[{"description":"","qty":"1","unitPrice":"0.00","category":"","promo":false}],"notes":""}. Currency default SGD; qty/unitPrice as strings; skip totals/tax rows.' }
+            ]}],
+            generationConfig: { responseMimeType: "application/json" }
+          }),
+        }
+      );
+      const geminiData = await geminiRes.json();
+      if (geminiData.error) throw new Error(geminiData.error.message);
+      const parsed = { ok: true, ...JSON.parse(geminiData.candidates[0].content.parts[0].text) };
       if (!parsed.ok) throw new Error(parsed.error || "Extraction failed");
 
       setReceipt({
