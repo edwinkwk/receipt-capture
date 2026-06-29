@@ -294,6 +294,9 @@ function ReceiptCapture() {
   const [submitting, setSubmitting] = useState(false);
   const [toast, setToast] = useState(null);
   const [history, setHistory] = useState([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState(null);
+  const [searching, setSearching] = useState(false);
   const fileRef = useRef(null);
   const cameraRef = useRef(null);
 
@@ -460,6 +463,21 @@ function ReceiptCapture() {
     }
   };
 
+  const handleSearch = async () => {
+    if (!searchQuery.trim()) return;
+    setSearching(true);
+    setSearchResults(null);
+    try {
+      const res = await fetch(WEBHOOK_URL + "?action=findItem&query=" + encodeURIComponent(searchQuery.trim()), { redirect: "follow" });
+      const data = await res.json();
+      setSearchResults(data.ok ? data.results : []);
+    } catch (err) {
+      showToast("Search failed", "error");
+    } finally {
+      setSearching(false);
+    }
+  };
+
   const handleReset = () => {
     setReceipt(emptyReceipt());
     setImagePreview(null);
@@ -472,10 +490,63 @@ function ReceiptCapture() {
       {/* Header */}
       <div style={S.header}>
         <div>
-          <h1 style={S.headerTitle}>Receipt Capture <span style={{ fontSize: 11, fontWeight: 400, opacity: 0.6 }}>v1.6</span></h1>
+          <h1 style={S.headerTitle}>Receipt Capture <span style={{ fontSize: 11, fontWeight: 400, opacity: 0.6 }}>v1.7</span></h1>
           <p style={S.headerSub} onClick={() => window.open(`https://docs.google.com/spreadsheets/d/${TARGET_SHEET_ID}`, '_blank')}>Open purchase_tracker ↗</p>
         </div>
         {history.length > 0 && <span style={S.headerBadge}>{history.length} sent</span>}
+      </div>
+
+      {/* Search */}
+      <div style={S.section}>
+        <div style={S.sectionHead}>Search Items</div>
+        <div style={S.sectionBody}>
+          <div style={{ display: "flex", gap: 8 }}>
+            <input
+              style={{ ...S.input, flex: 1 }}
+              placeholder="e.g. Tim Tam, Kindle, Honey"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+            />
+            <button
+              style={{ ...S.btn, ...S.btnPrimary, padding: "9px 16px", minWidth: 70 }}
+              onClick={handleSearch}
+              disabled={searching}
+            >
+              {searching ? <span style={S.spinner} /> : "Search"}
+            </button>
+          </div>
+          {searchResults !== null && (
+            <div style={{ marginTop: 12 }}>
+              {searchResults.length === 0 ? (
+                <div style={{ fontSize: 13, color: T.textLight, textAlign: "center", padding: 12 }}>No items found</div>
+              ) : (
+                <>
+                  <div style={{ fontSize: 11, color: T.textMid, marginBottom: 8, fontWeight: 600 }}>{searchResults.length} match{searchResults.length !== 1 ? "es" : ""}</div>
+                  {searchResults.map((r, i) => (
+                    <div key={i} style={{ ...S.itemCard, marginBottom: 6, padding: "10px 12px" }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: 600, fontSize: 13 }}>{r.description}</div>
+                          <div style={{ fontSize: 11, color: T.textMid, marginTop: 2 }}>
+                            {r.sheet}{r.date ? ` · ${r.date}` : ""}{r.category ? ` · ${r.category}` : ""}
+                          </div>
+                        </div>
+                        <div style={{ textAlign: "right", marginLeft: 10 }}>
+                          <div style={{ fontWeight: 700, fontSize: 13, fontFamily: T.mono }}>${(parseFloat(r.amount) || 0).toFixed(2)}</div>
+                          {(parseFloat(r.qty) || 1) > 1 && (
+                            <div style={{ fontSize: 10, color: T.textLight }}>{r.qty} × ${(parseFloat(r.unitPrice) || 0).toFixed(2)}</div>
+                          )}
+                        </div>
+                      </div>
+                      {r.promo && r.promo !== "" && <span style={{ display: "inline-block", marginTop: 4, fontSize: 10, fontWeight: 600, color: T.accent, background: T.accentSoft, padding: "2px 6px", borderRadius: 4 }}>PROMO</span>}
+                    </div>
+                  ))}
+                </>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Capture Zone */}

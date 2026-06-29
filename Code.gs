@@ -57,6 +57,13 @@ function doGet(e) {
       .setMimeType(ContentService.MimeType.JSON);
   }
 
+  if (action === "findItem") {
+    var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    var result = findItem(ss, { query: e.parameter.query || "" });
+    return ContentService.createTextOutput(JSON.stringify(result))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
   if (action === "getResult") {
     const id = e.parameter.id || "";
     const cached = CacheService.getScriptCache().get("extract_" + id);
