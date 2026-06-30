@@ -490,7 +490,7 @@ function ReceiptCapture() {
       {/* Header */}
       <div style={S.header}>
         <div>
-          <h1 style={S.headerTitle}>Receipt Capture <span style={{ fontSize: 11, fontWeight: 400, opacity: 0.6 }}>v1.7</span></h1>
+          <h1 style={S.headerTitle}>Receipt Capture <span style={{ fontSize: 11, fontWeight: 400, opacity: 0.6 }}>v1.8</span></h1>
           <p style={S.headerSub} onClick={() => window.open(`https://docs.google.com/spreadsheets/d/${TARGET_SHEET_ID}`, '_blank')}>Open purchase_tracker ↗</p>
         </div>
         {history.length > 0 && <span style={S.headerBadge}>{history.length} sent</span>}
@@ -500,22 +500,20 @@ function ReceiptCapture() {
       <div style={S.section}>
         <div style={S.sectionHead}>Search Items</div>
         <div style={S.sectionBody}>
-          <div style={{ display: "flex", gap: 8 }}>
-            <input
-              style={{ ...S.input, flex: 1 }}
-              placeholder="e.g. Tim Tam, Kindle, Honey"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-            />
-            <button
-              style={{ ...S.btn, ...S.btnPrimary, padding: "9px 16px", minWidth: 70 }}
-              onClick={handleSearch}
-              disabled={searching}
-            >
-              {searching ? <span style={S.spinner} /> : "Search"}
-            </button>
-          </div>
+          <input
+            style={{ ...S.input, marginBottom: 8 }}
+            placeholder="e.g. Tim Tam, Kindle, Honey"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+          />
+          <button
+            style={{ ...S.btn, ...S.btnPrimary, width: "100%" }}
+            onClick={handleSearch}
+            disabled={searching}
+          >
+            {searching ? <span style={S.spinner} /> : "Search"}
+          </button>
           {searchResults !== null && (
             <div style={{ marginTop: 12 }}>
               {searchResults.length === 0 ? (

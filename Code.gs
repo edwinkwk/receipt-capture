@@ -680,13 +680,27 @@ function findItem(ss, body) {
   var results = [];
   var reserved = [OVERVIEW_SHEET, SUMMARY_SHEET];
   ss.getSheets().forEach(function(sheet) {
-    if (reserved.indexOf(sheet.getName()) > -1) return;
+    var sheetName = sheet.getName();
+    if (reserved.indexOf(sheetName) > -1) return;
     var data = sheet.getDataRange().getValues();
     data.forEach(function(row, rowIdx) {
-      var desc = String(row[COL_DESC - 1] || "").toLowerCase();
-      if (desc.indexOf(query) > -1) {
+      // Skip header/title rows — must have a numeric qty or # column
+      var qtyVal = row[COL_QTY - 1];
+      var numVal = row[COL_NUM - 1];
+      if (typeof numVal !== "number" && typeof qtyVal !== "number") return;
+
+      // Search across all text fields: sheet name, date, description, category, notes
+      var searchable = [
+        sheetName,
+        String(row[COL_DATE - 1] || ""),
+        String(row[COL_DESC - 1] || ""),
+        String(row[COL_CAT - 1] || ""),
+        String(row[COL_NOTES - 1] || "")
+      ].join(" ").toLowerCase();
+
+      if (searchable.indexOf(query) > -1) {
         results.push({
-          sheet: sheet.getName(),
+          sheet: sheetName,
           row: rowIdx + 1,
           date: row[COL_DATE - 1],
           description: row[COL_DESC - 1],
