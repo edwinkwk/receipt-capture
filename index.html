@@ -290,6 +290,8 @@ const keyframes = `
 function ReceiptCapture() {
   const [receipt, setReceipt] = useState(emptyReceipt());
   const [imagePreview, setImagePreview] = useState(null);
+  const [imageFile, setImageFile] = useState(null);
+  const [uploadToDrive, setUploadToDrive] = useState(true);
   const [extracting, setExtracting] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [toast, setToast] = useState(null);
@@ -331,6 +333,7 @@ function ReceiptCapture() {
   const handleImage = useCallback(async (file) => {
     if (!file) return;
 
+    setImageFile(file);
     const url = URL.createObjectURL(file);
     setImagePreview(url);
     setExtracting(true);
@@ -432,14 +435,21 @@ function ReceiptCapture() {
         footer,
         overviewEntry: {
           date: dateFmt,
-          store: receipt.store,
-          location: receipt.location,
+          store: receipt.store || "",
+          location: receipt.location || "",
           items: filteredItems.reduce((s, it) => s + (parseFloat(it.qty) || 1), 0),
-          total: parseFloat(calcTotal()),
-          currency: receipt.currency,
-          payment: receipt.payment,
+          total: parseFloat(calcTotal()) || 0,
+          currency: receipt.currency || "SGD",
+          payment: receipt.payment || "",
         },
       };
+
+      if (uploadToDrive && imageFile) {
+        const compressed = await resizeImage(imageFile, 1600);
+        const b64 = await fileToBase64(compressed);
+        payload.imageData = b64;
+        payload.imageName = `${receipt.store.replace(/[^a-zA-Z0-9]/g, "_")}_${receipt.date}.jpg`;
+      }
 
       const res = await fetch(WEBHOOK_URL, {
         method: "POST",
@@ -454,7 +464,8 @@ function ReceiptCapture() {
       ]);
       setReceipt(emptyReceipt());
       setImagePreview(null);
-      showToast("Pushed to Google Sheet");
+      setImageFile(null);
+      showToast(uploadToDrive && imageFile ? "Pushed to Sheet + Drive" : "Pushed to Google Sheet");
     } catch (err) {
       console.error(err);
       showToast("Push failed — check connection", "error");
@@ -481,6 +492,7 @@ function ReceiptCapture() {
   const handleReset = () => {
     setReceipt(emptyReceipt());
     setImagePreview(null);
+    setImageFile(null);
   };
 
   return (
@@ -490,7 +502,7 @@ function ReceiptCapture() {
       {/* Header */}
       <div style={S.header}>
         <div>
-          <h1 style={S.headerTitle}>Receipt Capture <span style={{ fontSize: 11, fontWeight: 400, opacity: 0.6 }}>v1.8</span></h1>
+          <h1 style={S.headerTitle}>Receipt Capture <span style={{ fontSize: 11, fontWeight: 400, opacity: 0.6 }}>v1.9</span></h1>
           <p style={S.headerSub} onClick={() => window.open(`https://docs.google.com/spreadsheets/d/${TARGET_SHEET_ID}`, '_blank')}>Open purchase_tracker ↗</p>
         </div>
         {history.length > 0 && <span style={S.headerBadge}>{history.length} sent</span>}
@@ -594,6 +606,19 @@ function ReceiptCapture() {
                 <div style={S.captureLabel}>Upload File</div>
                 <div style={S.captureSub}>Gallery or files</div>
               </div>
+            </div>
+          )}
+          {imageFile && (
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, padding: "8px 10px", background: T.surfaceAlt, borderRadius: T.radiusSm }}>
+              <input
+                type="checkbox"
+                checked={uploadToDrive}
+                onChange={(e) => setUploadToDrive(e.target.checked)}
+                style={{ width: 16, height: 16, accentColor: T.accent }}
+              />
+              <label style={{ fontSize: 12, fontWeight: 500, color: T.textMid, cursor: "pointer" }} onClick={() => setUploadToDrive(!uploadToDrive)}>
+                Upload receipt image to Google Drive
+              </label>
             </div>
           )}
         </div>

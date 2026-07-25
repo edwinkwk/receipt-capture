@@ -258,41 +258,80 @@ function addReceiptSheet(ss, body) {
     ws.setColumnWidth(COL_NOTES, 180);
   }
 
+  // ── Upload image to Google Drive ────────────────────────────────────
+  var driveUrl = "";
+  if (body.imageData) {
+    try {
+      var folderName = "Receipt Images";
+      var folders = DriveApp.getFoldersByName(folderName);
+      var targetFolder = folders.hasNext() ? folders.next() : DriveApp.createFolder(folderName);
+      var fileName = body.imageName || (storeName.replace(/[^a-zA-Z0-9]/g, "_") + "_" + (receiptDate || "receipt") + ".jpg");
+      var blob = Utilities.newBlob(Utilities.base64Decode(body.imageData), "image/jpeg", fileName);
+      var file = targetFolder.createFile(blob);
+      driveUrl = file.getUrl();
+    } catch (driveErr) {
+      Logger.log("Drive upload failed: " + driveErr.message);
+    }
+  }
+
   // ── Append to Overview ────────────────────────────────────────────────
   var overviewUpdated = false;
   var ov = body.overviewEntry;
   if (ov) {
     var ovSheet = ss.getSheetByName(OVERVIEW_SHEET);
     if (ovSheet) {
+      // Read header row to map columns dynamically
+      var ovData = ovSheet.getDataRange().getValues();
+      var ovHeaderIdx = 0;
+      for (var r = 0; r < ovData.length; r++) {
+        if (String(ovData[r][0]).toLowerCase().trim() === "date") { ovHeaderIdx = r; break; }
+      }
+      var ovHeaders = ovData[ovHeaderIdx];
+      var colMap = {};
+      ovHeaders.forEach(function(h, i) {
+        var key = String(h).toLowerCase().trim();
+        if (key) colMap[key] = i + 1;
+      });
+
       var lastOvRow = ovSheet.getLastRow();
       ovSheet.insertRowBefore(lastOvRow);
       var insertRow = lastOvRow;
-      var rowData = [ov.date, ov.store, ov.location, ov.items, ov.total, ov.currency, ov.payment];
       var bg = insertRow % 2 === 0 ? "#F5F5F5" : "#FFFFFF";
-      rowData.forEach(function(val, i) {
-        var cell = ovSheet.getRange(insertRow, i + 1);
-        cell.setValue(val).setFontFamily("Arial").setFontSize(10).setFontColor("#000000").setBackground(bg)
-          .setHorizontalAlignment(i === 0 || i === 3 || i === 4 || i === 5 ? "center" : "left")
-          .setVerticalAlignment("middle");
-        if (i === 4) cell.setNumberFormat("$#,##0.00");
+
+      var fieldMap = {
+        "date": { val: ov.date || "", align: "center" },
+        "store": { val: ov.store || "", align: "left" },
+        "location": { val: ov.location || "", align: "left" },
+        "items": { val: ov.items || 0, align: "center" },
+        "total": { val: ov.total || 0, align: "center", fmt: "$#,##0.00" },
+        "currency": { val: ov.currency || "SGD", align: "center" },
+        "payment": { val: ov.payment || "", align: "left" },
+        "receipt": { val: driveUrl, align: "left" },
+      };
+
+      Object.keys(fieldMap).forEach(function(key) {
+        var col = colMap[key];
+        if (!col) return;
+        var f = fieldMap[key];
+        var cell = ovSheet.getRange(insertRow, col);
+        cell.setValue(f.val).setFontFamily("Arial").setFontSize(10).setFontColor("#000000")
+          .setBackground(bg).setHorizontalAlignment(f.align).setVerticalAlignment("middle");
+        if (f.fmt) cell.setNumberFormat(f.fmt);
       });
+
       // Recalculate TOTAL SPEND row (last row)
       var newLastRow = ovSheet.getLastRow();
-      var ovData = ovSheet.getDataRange().getValues();
+      var freshOvData = ovSheet.getDataRange().getValues();
       var totalItems = 0;
       var totalSpend = 0;
-      // Find header row to skip it (row with "Date" in col A)
-      var ovHeaderIdx = 0;
-      for (var r = 0; r < ovData.length; r++) {
-        if (String(ovData[r][0]).toLowerCase() === "date") { ovHeaderIdx = r; break; }
+      var itemsCol = (colMap["items"] || 4) - 1;
+      var totalCol = (colMap["total"] || 5) - 1;
+      for (var r = ovHeaderIdx + 1; r < freshOvData.length - 1; r++) {
+        totalItems += (parseFloat(freshOvData[r][itemsCol]) || 0);
+        totalSpend += (parseFloat(freshOvData[r][totalCol]) || 0);
       }
-      // Sum all data rows (skip header and last TOTAL SPEND row)
-      for (var r = ovHeaderIdx + 1; r < ovData.length - 1; r++) {
-        totalItems += (parseFloat(ovData[r][3]) || 0);
-        totalSpend += (parseFloat(ovData[r][4]) || 0);
-      }
-      ovSheet.getRange(newLastRow, 4).setValue(totalItems);
-      ovSheet.getRange(newLastRow, 5).setValue(totalSpend).setNumberFormat("$#,##0.00");
+      ovSheet.getRange(newLastRow, itemsCol + 1).setValue(totalItems);
+      ovSheet.getRange(newLastRow, totalCol + 1).setValue(totalSpend).setNumberFormat("$#,##0.00");
 
       overviewUpdated = true;
     }
@@ -372,7 +411,8 @@ function addReceiptSheet(ss, body) {
     itemsAdded: items.length,
     total: total,
     overviewUpdated: overviewUpdated,
-    summaryUpdated: summaryUpdated
+    summaryUpdated: summaryUpdated,
+    driveUrl: driveUrl || null
   };
 }
 
