@@ -64,6 +64,35 @@ function doGet(e) {
       .setMimeType(ContentService.MimeType.JSON);
   }
 
+  if (action === "getReceipts") {
+    try {
+      var folders = DriveApp.getFoldersByName("Receipt Images");
+      if (!folders.hasNext()) {
+        return ContentService.createTextOutput(JSON.stringify({ ok: true, receipts: [] }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+      var folder = folders.next();
+      var files = folder.getFiles();
+      var receipts = [];
+      while (files.hasNext()) {
+        var f = files.next();
+        receipts.push({
+          name: f.getName(),
+          url: f.getUrl(),
+          thumbnail: "https://drive.google.com/thumbnail?id=" + f.getId() + "&sz=w400",
+          date: f.getDateCreated().toISOString(),
+          size: f.getSize()
+        });
+      }
+      receipts.sort(function(a, b) { return new Date(b.date) - new Date(a.date); });
+      return ContentService.createTextOutput(JSON.stringify({ ok: true, receipts: receipts }))
+        .setMimeType(ContentService.MimeType.JSON);
+    } catch (e) {
+      return ContentService.createTextOutput(JSON.stringify({ ok: false, error: e.message }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+  }
+
   if (action === "getResult") {
     const id = e.parameter.id || "";
     const cached = CacheService.getScriptCache().get("extract_" + id);
