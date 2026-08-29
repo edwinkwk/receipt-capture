@@ -258,8 +258,23 @@ function addReceiptSheet(ss, body) {
     ws.setColumnWidth(COL_NOTES, 180);
   }
 
-  // ── Append to Overview ────────────────────────────────────────────────
+  // ── Upload image to Google Drive ────────────────────────────────────
   var driveUrl = "";
+  if (body.imageData) {
+    try {
+      var folderName = "Receipt Images";
+      var folders = DriveApp.getFoldersByName(folderName);
+      var targetFolder = folders.hasNext() ? folders.next() : DriveApp.createFolder(folderName);
+      var fileName = body.imageName || (storeName.replace(/[^a-zA-Z0-9]/g, "_") + "_" + (receiptDate || "receipt") + ".jpg");
+      var blob = Utilities.newBlob(Utilities.base64Decode(body.imageData), "image/jpeg", fileName);
+      var file = targetFolder.createFile(blob);
+      driveUrl = file.getUrl();
+    } catch (driveErr) {
+      Logger.log("Drive upload failed: " + driveErr.message);
+    }
+  }
+
+  // ── Append to Overview ────────────────────────────────────────────────
   var overviewUpdated = false;
   var ov = body.overviewEntry;
   if (ov) {
