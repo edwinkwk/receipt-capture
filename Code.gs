@@ -289,7 +289,7 @@ function addReceiptSheet(ss, body) {
   if (body.imageData) {
     try {
       var targetFolder = DriveApp.getFolderById(RECEIPT_FOLDER_ID);
-      var fileName = body.imageName || (storeName.replace(/[^a-zA-Z0-9]/g, "_") + "_" + (receiptDate || "receipt") + ".jpg");
+      var fileName = body.imageName || ((receiptDate || "undated") + "_" + storeName.replace(/[^a-zA-Z0-9]/g, "_") + ".jpg");
       var blob = Utilities.newBlob(Utilities.base64Decode(body.imageData), "image/jpeg", fileName);
       var file = targetFolder.createFile(blob);
       driveUrl = file.getUrl();

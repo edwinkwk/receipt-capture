@@ -496,7 +496,7 @@ function ReceiptCapture() {
         const compressed = await resizeImage(imageFile, 1600);
         const b64 = await fileToBase64(compressed);
         payload.imageData = b64;
-        payload.imageName = `${receipt.store.replace(/[^a-zA-Z0-9]/g, "_")}_${receipt.date}.jpg`;
+        payload.imageName = `${receipt.date}_${receipt.store.replace(/[^a-zA-Z0-9]/g, "_")}.jpg`;
       }
 
       const res = await fetch(WEBHOOK_URL, {
