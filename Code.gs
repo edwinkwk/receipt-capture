@@ -34,6 +34,8 @@ const SPREADSHEET_ID  = "1Md91UVc4aaH7to6iMkQx8TaeAfryeA1dwEVXx6LXOsE";
 const OVERVIEW_SHEET  = "Overview";
 const SUMMARY_SHEET   = "Category Summary";
 
+const RECEIPT_FOLDER_ID = "1OXmziSzuttK81ib5r1uHy-hqUws-loN4";
+
 const COLORS = { dark: "1B3A4B", accent: "4A90D9", light: "E8F0FE" };
 
 const NUM_COLS   = 9;
@@ -66,12 +68,7 @@ function doGet(e) {
 
   if (action === "getReceipts") {
     try {
-      var folders = DriveApp.getFoldersByName("Receipt Images");
-      if (!folders.hasNext()) {
-        return ContentService.createTextOutput(JSON.stringify({ ok: true, receipts: [] }))
-          .setMimeType(ContentService.MimeType.JSON);
-      }
-      var folder = folders.next();
+      var folder = DriveApp.getFolderById(RECEIPT_FOLDER_ID);
       var files = folder.getFiles();
       var receipts = [];
       while (files.hasNext()) {
@@ -291,9 +288,7 @@ function addReceiptSheet(ss, body) {
   var driveUrl = "";
   if (body.imageData) {
     try {
-      var folderName = "Receipt Images";
-      var folders = DriveApp.getFoldersByName(folderName);
-      var targetFolder = folders.hasNext() ? folders.next() : DriveApp.createFolder(folderName);
+      var targetFolder = DriveApp.getFolderById(RECEIPT_FOLDER_ID);
       var fileName = body.imageName || (storeName.replace(/[^a-zA-Z0-9]/g, "_") + "_" + (receiptDate || "receipt") + ".jpg");
       var blob = Utilities.newBlob(Utilities.base64Decode(body.imageData), "image/jpeg", fileName);
       var file = targetFolder.createFile(blob);
