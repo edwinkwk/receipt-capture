@@ -302,8 +302,27 @@ function ReceiptCapture() {
   const [searching, setSearching] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [apiKey, setApiKey] = useState(() => localStorage.getItem("gemini_api_key") || "");
+  const [backendStatus, setBackendStatus] = useState("checking"); // "checking" | "ok" | "error"
   const fileRef = useRef(null);
   const cameraRef = useRef(null);
+
+  useEffect(() => {
+    const checkBackend = async () => {
+      try {
+        const res = await fetch(WEBHOOK_URL + "?action=getConfig", { redirect: "follow" });
+        const data = await res.json();
+        if (data.k) {
+          setBackendStatus("ok");
+          if (!apiKey) setApiKey(data.k);
+        } else {
+          setBackendStatus("error");
+        }
+      } catch (e) {
+        setBackendStatus("error");
+      }
+    };
+    checkBackend();
+  }, []);
 
   const showToast = (msg, type = "success") => {
     setToast({ msg, type });
@@ -517,7 +536,7 @@ function ReceiptCapture() {
       {/* Header */}
       <div style={S.header}>
         <div>
-          <h1 style={S.headerTitle}>Receipt Capture <span style={{ fontSize: 11, fontWeight: 400, opacity: 0.6 }}>v2.1</span></h1>
+          <h1 style={S.headerTitle}>Receipt Capture <span style={{ fontSize: 11, fontWeight: 400, opacity: 0.6 }}>v2.2</span></h1>
           <p style={S.headerSub} onClick={() => window.open(`https://docs.google.com/spreadsheets/d/${TARGET_SHEET_ID}`, '_blank')}>Open purchase_tracker ↗</p>
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -525,6 +544,20 @@ function ReceiptCapture() {
           <span style={{ ...S.headerBadge, cursor: "pointer" }} onClick={() => setShowSettings(!showSettings)}>⚙</span>
         </div>
       </div>
+
+      {/* Backend Status Banner */}
+      {backendStatus === "checking" && (
+        <div style={{ padding: "10px 16px", background: "#FFF8E7", borderBottom: `1px solid ${T.border}`, fontSize: 13, color: T.textMid, textAlign: "center" }}>
+          ⏳ Checking backend connection...
+        </div>
+      )}
+      {backendStatus === "error" && (
+        <div style={{ padding: "12px 16px", background: T.dangerBg, borderBottom: `1px solid ${T.danger}`, fontSize: 13, color: T.danger, textAlign: "center", lineHeight: 1.5 }}>
+          ⚠️ Backend unreachable — Apps Script may need re-authorization.<br/>
+          <span style={{ fontSize: 12, opacity: 0.85 }}>Open the Apps Script editor → Run any function → Authorize prompts → Redeploy.</span>
+          <br/><button onClick={() => { setBackendStatus("checking"); fetch(WEBHOOK_URL + "?action=getConfig", { redirect: "follow" }).then(r => r.json()).then(d => setBackendStatus(d.k ? "ok" : "error")).catch(() => setBackendStatus("error")); }} style={{ marginTop: 6, padding: "4px 14px", border: `1px solid ${T.danger}`, background: "white", borderRadius: T.radiusSm, color: T.danger, cursor: "pointer", fontSize: 12 }}>Retry</button>
+        </div>
+      )}
 
       {/* Settings */}
       {showSettings && (
