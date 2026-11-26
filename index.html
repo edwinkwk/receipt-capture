@@ -405,7 +405,7 @@ function ReceiptCapture() {
           body: JSON.stringify({
             contents: [{ parts: [
               { inline_data: { mime_type: "image/jpeg", data: base64 } },
-              { text: 'Extract receipt data. Return ONLY valid JSON: {"store":"","date":"YYYY-MM-DD","currency":"SGD","location":"","payment":"","items":[{"description":"","qty":"1","unitPrice":"0.00","category":"","promo":false}],"notes":""}. Currency default SGD; qty/unitPrice as strings; skip totals/tax rows.' }
+              { text: 'Extract receipt data. Return ONLY valid JSON: {"store":"","date":"YYYY-MM-DD","currency":"SGD","location":"","payment":"","items":[{"description":"","qty":"1","unitPrice":"0.00","category":"","promo":false}],"notes":""}. Currency default SGD; qty/unitPrice as strings; skip totals/tax/subtotal rows. IMPORTANT: When a line item has discounts below it (e.g. "35% OFF", "BEST BUY", "BUY 2 GET 1", "B\'DAY $5 OFF"), subtract ALL discount amounts from the item\'s original price to get the final unitPrice, and set promo to true. For example: item $56.50 with -$19.78 and -$5.00 discounts → unitPrice should be "31.72" with promo true. Do NOT create separate line items for discount lines.' }
             ]}],
             generationConfig: { responseMimeType: "application/json" }
           }),
