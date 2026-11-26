@@ -397,21 +397,29 @@ function ReceiptCapture() {
       const key = await getApiKey();
       if (!key) throw new Error("No API key — backend may need re-authorization (see banner above)");
 
-      const geminiRes = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "x-goog-api-key": key },
-          body: JSON.stringify({
-            contents: [{ parts: [
-              { inline_data: { mime_type: "image/jpeg", data: base64 } },
-              { text: 'Extract receipt data. Return ONLY valid JSON: {"store":"","date":"YYYY-MM-DD","currency":"SGD","location":"","payment":"","items":[{"description":"","qty":"1","unitPrice":"0.00","category":"","promo":false}],"notes":""}. Currency default SGD; qty/unitPrice as strings; skip totals/tax/subtotal rows. IMPORTANT: When a line item has discounts below it (e.g. "35% OFF", "BEST BUY", "BUY 2 GET 1", "B\'DAY $5 OFF"), subtract ALL discount amounts from the item\'s original price to get the final unitPrice, and set promo to true. For example: item $56.50 with -$19.78 and -$5.00 discounts → unitPrice should be "31.72" with promo true. Do NOT create separate line items for discount lines.' }
-            ]}],
-            generationConfig: { responseMimeType: "application/json" }
-          }),
+      const geminiBody = JSON.stringify({
+        contents: [{ parts: [
+          { inline_data: { mime_type: "image/jpeg", data: base64 } },
+          { text: 'Extract receipt data. Return ONLY valid JSON: {"store":"","date":"YYYY-MM-DD","currency":"SGD","location":"","payment":"","items":[{"description":"","qty":"1","unitPrice":"0.00","category":"","promo":false}],"notes":""}. Currency default SGD; qty/unitPrice as strings; skip totals/tax/subtotal rows. IMPORTANT: When a line item has discounts below it (e.g. "35% OFF", "BEST BUY", "BUY 2 GET 1", "B\'DAY $5 OFF"), subtract ALL discount amounts from the item\'s original price to get the final unitPrice, and set promo to true. For example: item $56.50 with -$19.78 and -$5.00 discounts → unitPrice should be "31.72" with promo true. Do NOT create separate line items for discount lines.' }
+        ]}],
+        generationConfig: { responseMimeType: "application/json" }
+      });
+
+      let geminiData;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const geminiRes = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
+          { method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": key }, body: geminiBody }
+        );
+        geminiData = await geminiRes.json();
+        if (geminiRes.status === 429 || geminiRes.status === 503 || (geminiData.error && /overloaded|resource.*exhausted|quota|capacity/i.test(geminiData.error.message))) {
+          const delay = (attempt + 1) * 3000;
+          showToast(`High demand — retrying in ${delay / 1000}s... (${attempt + 1}/3)`, "error");
+          await new Promise(r => setTimeout(r, delay));
+          continue;
         }
-      );
-      const geminiData = await geminiRes.json();
+        break;
+      }
       if (geminiData.error) throw new Error("Gemini: " + geminiData.error.message);
       const parsed = JSON.parse(geminiData.candidates[0].content.parts[0].text);
 
