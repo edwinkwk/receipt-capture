@@ -280,7 +280,7 @@ function addReceiptSheet(ss, body) {
     ws.setColumnWidth(COL_QTY, 50);
     ws.setColumnWidth(COL_UNIT, 100);
     ws.setColumnWidth(COL_AMOUNT, 100);
-    ws.setColumnWidth(COL_PROMO, 65);
+    ws.setColumnWidth(COL_PROMO, 150);
     ws.setColumnWidth(COL_NOTES, 180);
   }
 
@@ -449,7 +449,7 @@ function writeItemRow(ws, row, num, item, bg, date) {
   ws.getRange(row, COL_QTY).setValue(item.qty || 1).setBackground(bg).setFontFamily("Arial").setFontSize(10).setFontColor("#000000").setHorizontalAlignment("center");
   ws.getRange(row, COL_UNIT).setValue(item.unitPrice || 0).setBackground(bg).setFontFamily("Arial").setFontSize(10).setFontColor("#000000").setNumberFormat("$#,##0.00").setHorizontalAlignment("right");
   ws.getRange(row, COL_AMOUNT).setFormula("=E" + row + "*F" + row).setBackground(bg).setFontFamily("Arial").setFontSize(10).setFontWeight("bold").setFontColor("#000000").setNumberFormat("$#,##0.00").setHorizontalAlignment("right");
-  ws.getRange(row, COL_PROMO).setValue(item.promo ? "Yes" : "").setBackground(bg).setFontFamily("Arial").setFontSize(10).setFontColor("#000000").setHorizontalAlignment("center");
+  ws.getRange(row, COL_PROMO).setValue(item.promo || "").setBackground(bg).setFontFamily("Arial").setFontSize(10).setFontColor("#000000").setHorizontalAlignment("center");
   ws.getRange(row, COL_NOTES).setValue(item.notes || "").setBackground(bg).setFontFamily("Arial").setFontSize(10).setFontColor("#000000");
 }
 
@@ -804,7 +804,7 @@ function updateItem(ss, body) {
         if (updates.qty         !== undefined) sheet.getRange(rowIdx + 1, COL_QTY).setValue(updates.qty);
         if (updates.unitPrice   !== undefined) sheet.getRange(rowIdx + 1, COL_UNIT).setValue(updates.unitPrice);
         if (updates.notes       !== undefined) sheet.getRange(rowIdx + 1, COL_NOTES).setValue(updates.notes);
-        if (updates.promo       !== undefined) sheet.getRange(rowIdx + 1, COL_PROMO).setValue(updates.promo ? "Yes" : "");
+        if (updates.promo       !== undefined) sheet.getRange(rowIdx + 1, COL_PROMO).setValue(updates.promo || "");
         updated++;
       }
     });
